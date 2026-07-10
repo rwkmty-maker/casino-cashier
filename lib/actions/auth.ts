@@ -52,21 +52,22 @@ export async function login(_state: unknown, formData: FormData) {
   }
 
   const { email, password } = parsed.data
+  const normalizedEmail = email.toLowerCase()
 
-  if (isRateLimited(email)) {
+  if (isRateLimited(normalizedEmail)) {
     return { message: "ログイン試行回数が多すぎます。しばらくしてからお試しください。" }
   }
 
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: normalizedEmail },
   })
 
   if (!user || !user.active || !(await compare(password, user.passwordHash))) {
-    recordLoginAttempt(email)
+    recordLoginAttempt(normalizedEmail)
     return { message: "メールアドレスまたはパスワードが違います" }
   }
 
-  resetLoginAttempts(email)
+  resetLoginAttempts(normalizedEmail)
 
   const session = await getSession()
   session.userId = user.id

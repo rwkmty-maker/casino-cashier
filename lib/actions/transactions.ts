@@ -22,8 +22,9 @@ async function getHouseAccount(tx: Prisma.TransactionClient) {
 }
 
 async function getMemberAccount(tx: Prisma.TransactionClient, memberId: string) {
-  const account = await tx.account.findFirst({ where: { type: "MEMBER", memberId } })
+  const account = await tx.account.findFirst({ where: { type: "MEMBER", memberId }, include: { member: true } })
   if (!account) throw new Error("Member account not found")
+  if (account.member?.status !== "ACTIVE") throw new Error("会員が無効な状態です")
   return account
 }
 
@@ -251,6 +252,37 @@ export async function getTransactions(take = 100) {
       ledgerEntries: { include: { account: true } },
     },
   })
+}
+
+export async function getTransactionSummary() {
+  await requireSession()
+  const now = new Date()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+
+  const [todayCount, todayGroups, allTimeGroups] = await Promise.all([
+    prisma.transaction.count({ where: { createdAt: { gte: start, lt: end } } }),
+    prisma.transaction.groupBy({
+      by: ["type"],
+      where: { createdAt: { gte: start, lt: end }, status: { not: "CANCELLED" } },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.groupBy({
+      by: ["type"],
+      where: { status: { not: "CANCELLED" } },
+      _sum: { amount: true },
+    }),
+  ])
+
+  const toMap = (groups: { type: string; _sum: { amount: number | null } }[]) => {
+    const map: Record<string, number> = {}
+    for (const g of groups) {
+      if (typeof g._sum.amount === "number") map[g.type] = g._sum.amount
+    }
+    return map
+  }
+
+  return { todayCount, todayTotals: toMap(todayGroups), allTimeTotals: toMap(allTimeGroups) }
 }
 
 export async function getTransactionsByMember(memberId: string) {

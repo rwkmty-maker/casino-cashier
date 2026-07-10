@@ -1,26 +1,13 @@
-import { getTransactions } from "@/lib/actions/transactions"
+import { getTransactionSummary } from "@/lib/actions/transactions"
 import { transactionLabels } from "@/lib/transaction-labels"
 import { getMembers } from "@/lib/actions/members"
 import { getActiveSites } from "@/lib/actions/sites"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default async function ReportsPage() {
-  const [transactions, members, sites] = await Promise.all([getTransactions(), getMembers(), getActiveSites()])
+  const [summary, members, sites] = await Promise.all([getTransactionSummary(), getMembers(), getActiveSites()])
 
-  const today = new Date().toDateString()
-  const todayTransactions = transactions.filter((t) => new Date(t.createdAt).toDateString() === today)
-
-  const byType = (tx: typeof transactions) => {
-    const map: Record<string, number> = {}
-    for (const t of tx) {
-      if (t.status === "CANCELLED") continue
-      map[t.type] = (map[t.type] || 0) + t.amount
-    }
-    return map
-  }
-
-  const typeTotals = byType(todayTransactions)
-  const allTypeTotals = byType(transactions)
+  const { todayCount, todayTotals: typeTotals, allTimeTotals } = summary
 
   const siteBalances = sites.map((s) => ({ name: s.name, balance: s.account?.balance || 0 }))
 
@@ -34,7 +21,7 @@ export default async function ReportsPage() {
             <CardTitle className="text-sm font-medium">本日の取引数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{todayTransactions.length}</div>
+            <div className="text-2xl font-bold">{todayCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -100,7 +87,7 @@ export default async function ReportsPage() {
         </CardHeader>
         <CardContent>
           <ul className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-            {Object.entries(allTypeTotals).map(([type, total]) => (
+            {Object.entries(allTimeTotals).map(([type, total]) => (
               <li key={type} className="flex justify-between rounded-md border p-3">
                 <span className="text-muted-foreground">{transactionLabels[type] || type}</span>
                 <span className="font-semibold">{total.toLocaleString()} pt</span>
