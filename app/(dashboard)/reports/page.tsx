@@ -13,6 +13,7 @@ export default async function ReportsPage() {
   const byType = (tx: typeof transactions) => {
     const map: Record<string, number> = {}
     for (const t of tx) {
+      if (t.status === "CANCELLED") continue
       map[t.type] = (map[t.type] || 0) + t.amount
     }
     return map

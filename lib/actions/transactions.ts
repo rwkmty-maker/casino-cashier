@@ -38,13 +38,18 @@ async function debitAccount(tx: Prisma.TransactionClient, accountId: string, amo
     ? { id: accountId }
     : { id: accountId, balance: { gte: amount } }
 
-  const account = await tx.account.update({
-    where,
-    data: { balance: { decrement: amount } },
-  })
-
-  if (!account) throw new Error("残高が不足しています")
-  return account
+  try {
+    const account = await tx.account.update({
+      where,
+      data: { balance: { decrement: amount } },
+    })
+    return account
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+      throw new Error("残高が不足しています")
+    }
+    throw e
+  }
 }
 
 async function creditAccount(tx: Prisma.TransactionClient, accountId: string, amount: number) {
@@ -201,15 +206,24 @@ export async function processTransaction(_state: unknown, formData: FormData) {
   return { success: true }
 }
 
+const ReverseTransactionSchema = z.object({
+  transactionId: z.string().cuid(),
+})
+
 export async function reverseTransaction(transactionId: string) {
   const session = await requireManagerOrAdmin()
 
+  const parsed = ReverseTransactionSchema.safeParse({ transactionId })
+  if (!parsed.success) {
+    return { message: "取引IDが不正です" }
+  }
+
   const original = await prisma.transaction.findUnique({
-    where: { id: transactionId },
+    where: { id: parsed.data.transactionId },
   })
 
   if (!original || original.status !== "COMPLETED" || original.type === "REVERSAL") {
-    throw new Error("取消できない取引です")
+    return { message: "取消できない取引です" }
   }
 
   try {

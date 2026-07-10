@@ -23,12 +23,12 @@ export default function LoginPage() {
           <form action={action} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">メールアドレス</Label>
-              <Input id="email" name="email" type="email" defaultValue="admin@example.com" required />
+              <Input id="email" name="email" type="email" required />
               {state?.errors?.email && <p className="text-xs text-destructive">{state.errors.email}</p>}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">パスワード</Label>
-              <Input id="password" name="password" type="password" defaultValue="admin123" required />
+              <Input id="password" name="password" type="password" required />
               {state?.errors?.password && <p className="text-xs text-destructive">{state.errors.password}</p>}
             </div>
             {state?.message && (

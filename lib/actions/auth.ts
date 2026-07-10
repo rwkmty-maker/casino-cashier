@@ -55,6 +55,11 @@ const UserCreateSchema = z.object({
   role: z.enum(["ADMIN", "MANAGER", "CASHIER"]),
 })
 
+const ToggleUserSchema = z.object({
+  id: z.string().cuid(),
+  active: z.boolean(),
+})
+
 export async function createUser(_state: unknown, formData: FormData) {
   await requireAdmin()
 
@@ -90,7 +95,13 @@ export async function createUser(_state: unknown, formData: FormData) {
 
 export async function toggleUser(id: string, active: boolean) {
   await requireAdmin()
-  await prisma.user.update({ where: { id }, data: { active } })
+
+  const parsed = ToggleUserSchema.safeParse({ id, active })
+  if (!parsed.success) {
+    return
+  }
+
+  await prisma.user.update({ where: { id: parsed.data.id }, data: { active: parsed.data.active } })
   revalidatePath("/settings/users")
 }
 
