@@ -1,6 +1,6 @@
 'use server'
 
-import { compare, hashSync } from "bcryptjs"
+import { compare, hash } from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import * as z from "zod"
@@ -11,6 +11,35 @@ const LoginSchema = z.object({
   email: z.string().email("有効なメールアドレスを入力してください"),
   password: z.string().min(1, "パスワードを入力してください"),
 })
+
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
+const RATE_LIMIT_MAX_ATTEMPTS = 5
+const loginAttempts = new Map<string, { count: number; firstAttempt: number }>()
+
+function isRateLimited(email: string) {
+  const now = Date.now()
+  const record = loginAttempts.get(email)
+  if (!record) return false
+  if (now - record.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+    loginAttempts.delete(email)
+    return false
+  }
+  return record.count >= RATE_LIMIT_MAX_ATTEMPTS
+}
+
+function recordLoginAttempt(email: string) {
+  const now = Date.now()
+  const record = loginAttempts.get(email)
+  if (!record || now - record.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+    loginAttempts.set(email, { count: 1, firstAttempt: now })
+  } else {
+    record.count++
+  }
+}
+
+function resetLoginAttempts(email: string) {
+  loginAttempts.delete(email)
+}
 
 export async function login(_state: unknown, formData: FormData) {
   const parsed = LoginSchema.safeParse({
@@ -24,13 +53,20 @@ export async function login(_state: unknown, formData: FormData) {
 
   const { email, password } = parsed.data
 
+  if (isRateLimited(email)) {
+    return { message: "ログイン試行回数が多すぎます。しばらくしてからお試しください。" }
+  }
+
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
   })
 
   if (!user || !user.active || !(await compare(password, user.passwordHash))) {
+    recordLoginAttempt(email)
     return { message: "メールアドレスまたはパスワードが違います" }
   }
+
+  resetLoginAttempts(email)
 
   const session = await getSession()
   session.userId = user.id
@@ -81,7 +117,7 @@ export async function createUser(_state: unknown, formData: FormData) {
       data: {
         name,
         email: email.toLowerCase(),
-        passwordHash: hashSync(password, 10),
+        passwordHash: await hash(password, 10),
         role,
       },
     })

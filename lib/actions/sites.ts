@@ -8,9 +8,9 @@ import { requireManagerOrAdmin, requireSession } from "@/lib/session"
 const SiteSchema = z.object({
   name: z.string().min(1, "サイト名を入力してください"),
   slug: z.string().min(1, "スラッグを入力してください"),
-  color: z.string().optional().or(z.literal("")),
-  apiUrl: z.string().url().optional().or(z.literal("")),
-  apiKey: z.string().optional().or(z.literal("")),
+  color: z.string().optional().or(z.literal("")).nullish(),
+  apiUrl: z.string().url().optional().or(z.literal("")).nullish(),
+  apiKey: z.string().optional().or(z.literal("")).nullish(),
   status: z.enum(["ACTIVE", "MAINTENANCE", "DISABLED"]),
 })
 
@@ -34,7 +34,7 @@ export async function createSite(_state: unknown, formData: FormData) {
   try {
     await prisma.$transaction(async (tx) => {
       const site = await tx.site.create({
-        data: { name, slug, color: color || null, apiUrl: apiUrl || null, apiKey: apiKey || null, status },
+        data: { name, slug, color: color || null, apiUrl: apiUrl || null, apiKey: apiKey ?? null, status },
       })
       await tx.account.create({
         data: { type: "SITE", balance: 0, siteId: site.id },
@@ -68,7 +68,7 @@ export async function updateSite(id: string, _state: unknown, formData: FormData
   try {
     await prisma.site.update({
       where: { id },
-      data: { name, slug, color: color || null, apiUrl: apiUrl || null, apiKey: apiKey || null, status },
+      data: { name, slug, color: color || null, apiUrl: apiUrl || null, apiKey: apiKey ?? undefined, status },
     })
   } catch {
     return { message: "スラッグが重複しています" }
@@ -91,6 +91,12 @@ export async function getActiveSites() {
   return prisma.site.findMany({
     where: { status: "ACTIVE" },
     orderBy: { order: "asc" },
-    include: { account: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      color: true,
+      account: { select: { balance: true } },
+    },
   })
 }
