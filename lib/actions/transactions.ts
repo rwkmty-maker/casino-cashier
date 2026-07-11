@@ -242,9 +242,10 @@ export async function reverseTransaction(transactionId: string) {
 
 export async function getTransactions(take = 100) {
   await requireSession()
+  const safeTake = Math.min(Math.max(Number(take) || 100, 1), 1000)
   return prisma.transaction.findMany({
     orderBy: { createdAt: "desc" },
-    take,
+    take: safeTake,
     include: {
       member: { include: { account: true } },
       site: true,
@@ -254,11 +255,18 @@ export async function getTransactions(take = 100) {
   })
 }
 
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000
+
+function getJSTDateRange() {
+  const nowJST = new Date(Date.now() + JST_OFFSET_MS)
+  const start = new Date(Date.UTC(nowJST.getUTCFullYear(), nowJST.getUTCMonth(), nowJST.getUTCDate()) - JST_OFFSET_MS)
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  return { start, end }
+}
+
 export async function getTransactionSummary() {
   await requireSession()
-  const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+  const { start, end } = getJSTDateRange()
 
   const [todayCount, todayGroups, allTimeGroups] = await Promise.all([
     prisma.transaction.count({ where: { createdAt: { gte: start, lt: end }, status: { not: "CANCELLED" } } }),

@@ -41,7 +41,7 @@ export async function requireManagerOrAdmin() {
 
 export async function requireAdmin() {
   const session = await getSession()
-  if (!session.isLoggedIn || session.role !== "ADMIN") {
+  if (!session.isLoggedIn || !session.userId || session.role !== "ADMIN") {
     throw new Error("Forbidden")
   }
   return session
