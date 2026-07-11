@@ -261,7 +261,7 @@ export async function getTransactionSummary() {
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
 
   const [todayCount, todayGroups, allTimeGroups] = await Promise.all([
-    prisma.transaction.count({ where: { createdAt: { gte: start, lt: end } } }),
+    prisma.transaction.count({ where: { createdAt: { gte: start, lt: end }, status: { not: "CANCELLED" } } }),
     prisma.transaction.groupBy({
       by: ["type"],
       where: { createdAt: { gte: start, lt: end }, status: { not: "CANCELLED" } },

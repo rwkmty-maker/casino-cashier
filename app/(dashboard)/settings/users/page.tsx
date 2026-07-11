@@ -1,5 +1,7 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getUsers, createUser, toggleUser } from "@/lib/actions/auth"
+import { getSession } from "@/lib/session"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,6 +10,11 @@ import { Badge } from "@/components/ui/badge"
 import { ActionForm } from "@/components/action-form"
 
 export default async function UsersPage() {
+  const session = await getSession()
+  if (!session.isLoggedIn || session.role !== "ADMIN") {
+    redirect("/")
+  }
+
   const users = await getUsers()
 
   return (

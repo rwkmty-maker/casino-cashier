@@ -14,20 +14,34 @@ const LoginSchema = z.object({
 
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
 const RATE_LIMIT_MAX_ATTEMPTS = 5
+const MAX_TRACKED_EMAILS = 1000
 const loginAttempts = new Map<string, { count: number; firstAttempt: number }>()
 
-function isRateLimited(email: string) {
+function cleanupLoginAttempts() {
   const now = Date.now()
+  for (const [email, record] of loginAttempts.entries()) {
+    if (now - record.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+      loginAttempts.delete(email)
+    }
+  }
+  if (loginAttempts.size > MAX_TRACKED_EMAILS) {
+    const entries = [...loginAttempts.entries()].sort((a, b) => a[1].firstAttempt - b[1].firstAttempt)
+    const toRemove = entries.length - MAX_TRACKED_EMAILS
+    for (let i = 0; i < toRemove; i++) {
+      loginAttempts.delete(entries[i][0])
+    }
+  }
+}
+
+function isRateLimited(email: string) {
+  cleanupLoginAttempts()
   const record = loginAttempts.get(email)
   if (!record) return false
-  if (now - record.firstAttempt > RATE_LIMIT_WINDOW_MS) {
-    loginAttempts.delete(email)
-    return false
-  }
   return record.count >= RATE_LIMIT_MAX_ATTEMPTS
 }
 
 function recordLoginAttempt(email: string) {
+  cleanupLoginAttempts()
   const now = Date.now()
   const record = loginAttempts.get(email)
   if (!record || now - record.firstAttempt > RATE_LIMIT_WINDOW_MS) {
